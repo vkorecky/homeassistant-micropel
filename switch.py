@@ -17,7 +17,8 @@ from homeassistant.const import (
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.entity import ToggleEntity
 from homeassistant.helpers.restore_state import RestoreEntity
-from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.core import HomeAssistant
 
 from . import SWITCH_SCHEMA
 from .const import CONF_BIT_INDEX, CONF_HUB, CONF_PLC, DOMAIN
@@ -32,7 +33,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 
 async def async_setup_platform(
-    hass: HomeAssistantType, config: ConfigType, async_add_entities, discovery_info=None
+    hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info=None
 ):
     """Read configuration and create Micropel switches."""
     switches = []

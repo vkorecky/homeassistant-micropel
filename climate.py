@@ -7,10 +7,8 @@ import logging
 import voluptuous as vol
 
 from homeassistant.components.climate import PLATFORM_SCHEMA, ClimateEntity
-from homeassistant.components.climate.const import (
-    HVAC_MODE_AUTO,
-    SUPPORT_TARGET_TEMPERATURE,
-)
+from homeassistant.components.climate.const import ClimateEntityFeature
+from homeassistant.components.climate.const import HVACMode
 from homeassistant.const import (
     ATTR_TEMPERATURE,
     CONF_NAME,
@@ -18,13 +16,13 @@ from homeassistant.const import (
     CONF_SCAN_INTERVAL,
     CONF_TEMPERATURE_UNIT,
     CONF_UNIQUE_ID,
-    TEMP_CELSIUS,
-    TEMP_FAHRENHEIT,
-    TEMP_KELVIN,
 )
+
+from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_track_time_interval
-from homeassistant.helpers.typing import ConfigType, HomeAssistantType
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.core import HomeAssistant
 
 from . import CLIMATE_SCHEMA
 from .const import (
@@ -52,7 +50,7 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
 
 
 async def async_setup_platform(
-    hass: HomeAssistantType, config: ConfigType, async_add_entities, discovery_info=None
+    hass: HomeAssistant, config: ConfigType, async_add_entities, discovery_info=None
 ):
     """Read configuration and create Micropel climate."""
     climates = []
@@ -146,17 +144,17 @@ class MicropelThermostat(ClimateEntity):
     @property
     def supported_features(self):
         """Return the list of supported features."""
-        return SUPPORT_TARGET_TEMPERATURE
+        return ClimateEntityFeature.TARGET_TEMPERATURE
 
     @property
     def hvac_mode(self):
         """Return the current HVAC mode."""
-        return HVAC_MODE_AUTO
+        return HVACMode.AUTO
 
     @property
     def hvac_modes(self):
         """Return the possible HVAC modes."""
-        return [HVAC_MODE_AUTO]
+        return [HVACMode.AUTO]
 
     def set_hvac_mode(self, hvac_mode: str) -> None:
         """Set new target hvac mode."""
@@ -182,10 +180,10 @@ class MicropelThermostat(ClimateEntity):
     def temperature_unit(self):
         """Return the unit of measurement."""
         if self._temperature_unit == "F" or self._temperature_unit == "°F":
-            return TEMP_FAHRENHEIT
+            return UnitOfTemperature.FAHRENHEIT
         if self._temperature_unit == "K" or self._temperature_unit == "°K":
-            return TEMP_KELVIN
-        return TEMP_CELSIUS
+            return UnitOfTemperature.KELVIN
+        return UnitOfTemperature.CELSIUS
 
     @property
     def min_temp(self):

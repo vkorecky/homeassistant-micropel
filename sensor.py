@@ -14,10 +14,8 @@ from homeassistant.const import (
     CONF_SENSORS,
     CONF_UNIQUE_ID,
     CONF_UNIT_OF_MEASUREMENT,
-    TEMP_CELSIUS,
-    TEMP_FAHRENHEIT,
-    TEMP_KELVIN,
 )
+from homeassistant.const import UnitOfTemperature
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -128,11 +126,11 @@ class MicropelRegisterSensor(RestoreEntity, SensorEntity):
     def unit_of_measurement(self):
         """Return the unit of measurement."""
         if self._unit_of_measurement == "F" or self._unit_of_measurement == "°F":
-            return TEMP_FAHRENHEIT
+            return UnitOfTemperature.FAHRENHEIT
         if self._unit_of_measurement == "K" or self._unit_of_measurement == "°K":
-            return TEMP_KELVIN
+            return UnitOfTemperature.KELVIN
         if self._unit_of_measurement == "C" or self._unit_of_measurement == "°C":
-            return TEMP_CELSIUS
+            return UnitOfTemperature.CELSIUS,
         return self._unit_of_measurement
 
     @property
