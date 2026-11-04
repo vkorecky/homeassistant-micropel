@@ -1,6 +1,8 @@
 """Support for Micropel Coil and Discrete Input sensors."""
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 
 from homeassistant.components.binary_sensor import PLATFORM_SCHEMA, BinarySensorEntity
@@ -15,6 +17,8 @@ from homeassistant.helpers import config_validation as cv
 
 from . import BINARY_SENSOR_SCHEMA
 from .const import CONF_BIT_INDEX, CONF_HUB, CONF_PLC, DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -95,6 +99,8 @@ class MicropelBinarySensor(BinarySensorEntity):
             result = self._hub.read_bit(self._plc, self._address, self._bit_index)
             self._value = result
             self._available = True
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return

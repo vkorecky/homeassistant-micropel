@@ -252,7 +252,9 @@ class MicropelThermostat(ClimateEntity):
             self._current_temperature = round(
                 (int(current_temp, 0) * self._scale) + self._offset
             )
-        except Exception:  # pylint: disable=broad-except
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             self.schedule_update_ha_state()
             return
@@ -264,7 +266,9 @@ class MicropelThermostat(ClimateEntity):
         """Write word using the Micropel hub PLC."""
         try:
             self._hub.write_word(self._plc, address, value)
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return
 

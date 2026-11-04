@@ -109,7 +109,9 @@ class MicropelBaseSwitch(SwitchEntity, ToggleEntity, RestoreEntity, ABC):
             result = self._hub.read_bit(self._plc, self._address, self._bit_index)
             self._is_on = result
             self._available = True
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return
 
@@ -121,6 +123,8 @@ class MicropelBaseSwitch(SwitchEntity, ToggleEntity, RestoreEntity, ABC):
             )
             self._is_on = result
             self._available = True
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return
