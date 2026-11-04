@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import threading
 
 import voluptuous as vol
 
@@ -120,11 +121,18 @@ class MicropelThermostat(ClimateEntity):
         self._current_temperature = None
         self._target_temperature = None
         self._available = True
+        # Prevents overlapping updates of this entity (see _update).
+        self._update_lock = threading.Lock()
 
     async def async_added_to_hass(self):
         """Handle entity which will be added."""
-        async_track_time_interval(
-            self.hass, lambda arg: self._update(), self._scan_interval
+
+        async def _async_poll(now):
+            """Run the blocking PLC communication in the executor."""
+            await self.hass.async_add_executor_job(self._update)
+
+        self.async_on_remove(
+            async_track_time_interval(self.hass, _async_poll, self._scan_interval)
         )
 
     @property
@@ -213,26 +221,41 @@ class MicropelThermostat(ClimateEntity):
         if target_temperature is None:
             return
         self._write_temp(self._target_temp_address, target_temperature)
-        self._update()
+        self._read_state()
 
     def _update(self):
-        """Update Target & Current Temperature."""
+        """Update Target & Current Temperature.
+
+        Called periodically. When the previous update is still running (e.g. the
+        PLC is slow or unreachable), the call is skipped, so the requests do not
+        pile up and exhaust the Home Assistant executor threads.
+        """
+        if not self._update_lock.acquire(blocking=False):
+            _LOGGER.debug("Update of %s is still running, skipping", self._name)
+            return
+        try:
+            self._read_state()
+        finally:
+            self._update_lock.release()
+
+    def _read_state(self):
+        """Read Target & Current Temperature from the PLC."""
         try:
             if self._register_type == REGISTER_TYPE_WORD:
                 target_temp = self._hub.read_word(self._plc, self._target_temp_address)
                 current_temp = self._hub.read_word(
                     self._plc, self._current_temp_address
                 )
-        except Exception:
+            self._target_temperature = round(
+                (int(target_temp, 0) * self._scale) + self._offset
+            )
+            self._current_temperature = round(
+                (int(current_temp, 0) * self._scale) + self._offset
+            )
+        except Exception:  # pylint: disable=broad-except
             self._available = False
+            self.schedule_update_ha_state()
             return
-
-        self._target_temperature = round(
-            (int(target_temp, 0) * self._scale) + self._offset
-        )
-        self._current_temperature = round(
-            (int(current_temp, 0) * self._scale) + self._offset
-        )
 
         self._available = True
         self.schedule_update_ha_state()
