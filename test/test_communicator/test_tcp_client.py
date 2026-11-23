@@ -73,8 +73,9 @@ def test_reconnects_after_backoff(monkeypatch):
     assert len(attempts) == 2
 
 
-def test_connection_closed_by_peer_drops_socket():
+def test_connection_closed_by_peer_drops_socket(monkeypatch):
     """Closed connection must raise and reset the socket (no endless loop)."""
+    monkeypatch.setattr(tcp_client, "IO_TIMEOUT", 1.0)
     server = socket.socket()
     server.bind(("127.0.0.1", 0))
     server.listen(1)
