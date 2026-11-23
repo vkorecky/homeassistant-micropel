@@ -51,8 +51,9 @@ class TcpClient:
                     raise ConnectionException(
                         f"Not connected to {self._host} port {self._port}"
                     )
-                request = self._cryptography.code_string(message)
-                request += "\r"
+                # The terminating CR must be encoded together with the message,
+                # because it resets the cipher state (also on the PLC side).
+                request = self._cryptography.code_string(message + "\r")
                 wait = True
                 sock.sendall(request.encode("utf-8"))
                 while wait:
