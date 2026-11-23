@@ -1,10 +1,11 @@
 """Support for Micropel."""
 import voluptuous as vol
 
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.cover import (
-    DEVICE_CLASSES_SCHEMA,
     DEVICE_CLASSES_SCHEMA as COVER_DEVICE_CLASSES_SCHEMA,
 )
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.const import (
     CONF_ADDRESS,
     CONF_BINARY_SENSORS,
@@ -76,7 +77,9 @@ BINARY_SENSOR_SCHEMA = BASE_PLATFORM_SCHEMA.extend(
     {
         vol.Required(CONF_ADDRESS): cv.positive_int,
         vol.Required(CONF_BIT_INDEX): cv.positive_int,
-        vol.Optional(CONF_DEVICE_CLASS): DEVICE_CLASSES_SCHEMA,
+        vol.Optional(CONF_DEVICE_CLASS): vol.All(
+            vol.Lower, vol.Coerce(BinarySensorDeviceClass)
+        ),
     }
 )
 
@@ -89,7 +92,9 @@ SENSOR_SCHEMA = BASE_PLATFORM_SCHEMA.extend(
                 DATA_TYPE_FLOAT,
             ]
         ),
-        vol.Optional(CONF_DEVICE_CLASS): DEVICE_CLASSES_SCHEMA,
+        vol.Optional(CONF_DEVICE_CLASS): vol.All(
+            vol.Lower, vol.Coerce(SensorDeviceClass)
+        ),
         vol.Optional(CONF_PRECISION, default=0): cv.positive_int,
         vol.Optional(CONF_REGISTER_TYPE, default=REGISTER_TYPE_WORD): vol.In(
             [REGISTER_TYPE_WORD, REGISTER_TYPE_LONG_WORD]
