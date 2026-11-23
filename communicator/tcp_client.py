@@ -21,7 +21,11 @@ CONNECT_TIMEOUT = 3
 IO_TIMEOUT = 10
 # After a failed connection attempt do not try again for this time (seconds).
 # While waiting, requests fail immediately instead of blocking the shared lock.
-RECONNECT_DELAY = 30
+RECONNECT_DELAY = 5
+
+
+class _ClosedByRemote(OSError):
+    """The remote host closed the connection (e.g. the CA5 idle timeout)."""
 
 
 class TcpClient:
@@ -42,42 +46,97 @@ class TcpClient:
     def send_and_receive(self, message: str) -> Optional[str]:
         """Send and receive data from server.
 
-        Raises ConnectionException when the PLC cannot be reached.
+        Raises ConnectionException when the PLC cannot be reached. When the
+        CA5 closed an idle connection, the connection is reopened once and
+        the request is repeated.
         """
         with self._lock:
             try:
-                sock = self.getSocket()
-                if sock is None:
-                    raise ConnectionException(
-                        f"Not connected to {self._host} port {self._port}"
-                    )
-                request = self._cryptography.code_string(message)
-                request += "\r"
-                wait = True
-                sock.sendall(request.encode("utf-8"))
-                while wait:
-                    response = sock.recv(1024)
-                    if not response:
-                        raise OSError("Connection closed by the remote host")
-                    response_str = response.decode("utf-8")
-                    response_str = self._cryptography.decode_string(response_str)
-                    cmd_id = Message.get_cmd_id(response_str)
-                    if cmd_id != "6E":
-                        wait = False
-                if Message.is_valid_message(response_str):
-                    raise MicropelException
-                if Message.get_cmd_type(response_str) == "!":
-                    raise ExceptionResponse
-                data = Message.get_data(response_str)
-                return data
-            except OSError as e:
-                _LOGGER.error(
-                    "Cannot send message to %s port %s: %s", self._host, self._port, e
-                )
-                self.close()
+                return self._send_and_receive(message)
+            except ConnectionException as err:
+                if not isinstance(err.__cause__, _ClosedByRemote):
+                    raise
+            _LOGGER.debug("Connection closed by the remote host, reconnecting")
+            if not self._reopen():
                 raise ConnectionException(
-                    f"Communication with {self._host} port {self._port} failed: {e}"
-                ) from e
+                    f"Not connected to {self._host} port {self._port}"
+                )
+            return self._send_and_receive(message)
+
+    def _reopen(self, attempts: int = 3, pause: float = 1.0) -> bool:
+        """Open a new connection, the CA5 may need a moment to accept it."""
+        self.close()
+        for attempt in range(attempts):
+            self._retry_after = 0.0
+            self.connect()
+            if self._sock is not None:
+                return True
+            if attempt < attempts - 1:
+                time.sleep(pause)
+        return False
+
+    def _send_and_receive(self, message: str) -> Optional[str]:
+        """Exchange one message, the caller holds the lock."""
+        try:
+            sock = self.getSocket()
+            if sock is None:
+                raise ConnectionException(
+                    f"Not connected to {self._host} port {self._port}"
+                )
+            # The terminating CR must be encoded together with the message,
+            # because it resets the cipher state (also on the PLC side).
+            request = self._cryptography.code_string(message + "\r")
+            wait = True
+            sock.sendall(request.encode("utf-8"))
+            while wait:
+                response = sock.recv(1024)
+                if not response:
+                    raise _ClosedByRemote("Connection closed by the remote host")
+                response_str = response.decode("utf-8")
+                response_str = self._cryptography.decode_string(response_str)
+                cmd_id = Message.get_cmd_id(response_str)
+                if cmd_id is None:
+                    # Usually a wrong CA5 password (the reply is decrypted
+                    # with a wrong key) or a wrong PLC address.
+                    _LOGGER.warning(
+                        "Unexpected reply from %s port %s: raw=%r decoded=%r "
+                        "(check the 'password' of the hub and the 'plc' address)",
+                        self._host,
+                        self._port,
+                        response,
+                        response_str,
+                    )
+                    raise MicropelException(
+                        "Unexpected reply, check password and plc address"
+                    )
+                if cmd_id != "6E":
+                    wait = False
+            if Message.is_valid_message(response_str):
+                raise MicropelException
+            if Message.get_cmd_type(response_str) == "!":
+                _LOGGER.warning(
+                    "PLC answered with an error to %r: raw=%r decoded=%r",
+                    message,
+                    response,
+                    response_str,
+                )
+                raise ExceptionResponse(
+                    f"PLC error response {response_str!r} to request {message!r}"
+                )
+            data = Message.get_data(response_str)
+            return data
+        except OSError as e:
+            _LOGGER.log(
+                logging.DEBUG if isinstance(e, _ClosedByRemote) else logging.ERROR,
+                "Cannot send message to %s port %s: %s",
+                self._host,
+                self._port,
+                e,
+            )
+            self.close()
+            raise ConnectionException(
+                f"Communication with {self._host} port {self._port} failed: {e}"
+            ) from e
 
     def getSocket(self):
         if not is_socket_connected(self._sock):
@@ -114,6 +173,8 @@ class TcpClient:
             return None
         self._sock = sock
         self._retry_after = 0.0
+        # Every new connection starts with a fresh cipher state.
+        self._cryptography.crypt_init(self._password)
         return None
 
     def close(self):

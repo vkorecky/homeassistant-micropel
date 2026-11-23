@@ -175,17 +175,17 @@ class MicropelThermostat(ClimateEntity):
         return self._name
 
     @property
-    def current_temperature(self):
+    def native_current_temperature(self):
         """Return the current temperature."""
         return self._current_temperature
 
     @property
-    def target_temperature(self):
+    def native_target_temperature(self):
         """Return the target temperature."""
         return self._target_temperature
 
     @property
-    def temperature_unit(self):
+    def native_temperature_unit(self):
         """Return the unit of measurement."""
         if self._temperature_unit == "F" or self._temperature_unit == "°F":
             return UnitOfTemperature.FAHRENHEIT
@@ -215,11 +215,11 @@ class MicropelThermostat(ClimateEntity):
 
     def set_temperature(self, **kwargs):
         """Set new target temperature."""
-        target_temperature = int(
-            (kwargs.get(ATTR_TEMPERATURE) - self._offset) / self._scale
-        )
-        if target_temperature is None:
+        temperature = kwargs.get(ATTR_TEMPERATURE)
+        if temperature is None:
             return
+        # round(), not int(): (21 + 273.2) / 0.1 is 2941.9999... in floats
+        target_temperature = round((temperature - self._offset) / self._scale)
         self._write_temp(self._target_temp_address, target_temperature)
         self._read_state()
 
@@ -252,7 +252,9 @@ class MicropelThermostat(ClimateEntity):
             self._current_temperature = round(
                 (int(current_temp, 0) * self._scale) + self._offset
             )
-        except Exception:  # pylint: disable=broad-except
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             self.schedule_update_ha_state()
             return
@@ -264,7 +266,9 @@ class MicropelThermostat(ClimateEntity):
         """Write word using the Micropel hub PLC."""
         try:
             self._hub.write_word(self._plc, address, value)
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return
 

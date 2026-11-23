@@ -153,7 +153,9 @@ class MicropelRegisterSensor(RestoreEntity, SensorEntity):
         try:
             if self._register_type == REGISTER_TYPE_WORD:
                 result = self._hub.read_word(self._plc, self._address)
-        except Exception:
+        except Exception as err:  # pylint: disable=broad-except
+            if self._available:
+                _LOGGER.warning("Update of %s failed: %r", self._name, err)
             self._available = False
             return
 
