@@ -62,6 +62,20 @@ class TcpClient:
                     response_str = response.decode("utf-8")
                     response_str = self._cryptography.decode_string(response_str)
                     cmd_id = Message.get_cmd_id(response_str)
+                    if cmd_id is None:
+                        # Usually a wrong CA5 password (the reply is decrypted
+                        # with a wrong key) or a wrong PLC address.
+                        _LOGGER.warning(
+                            "Unexpected reply from %s port %s: raw=%r decoded=%r "
+                            "(check the 'password' of the hub and the 'plc' address)",
+                            self._host,
+                            self._port,
+                            response,
+                            response_str,
+                        )
+                        raise MicropelException(
+                            "Unexpected reply, check password and plc address"
+                        )
                     if cmd_id != "6E":
                         wait = False
                 if Message.is_valid_message(response_str):
@@ -114,6 +128,8 @@ class TcpClient:
             return None
         self._sock = sock
         self._retry_after = 0.0
+        # Every new connection starts with a fresh cipher state.
+        self._cryptography.crypt_init(self._password)
         return None
 
     def close(self):

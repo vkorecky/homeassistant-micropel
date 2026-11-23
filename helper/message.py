@@ -12,6 +12,9 @@ def _get_cmd_index(message):
         cmd_index = message.index("*")
     if "!" in message:
         cmd_index = message.index("!")
+    if cmd_index is None:
+        # Not a valid message, e.g. it was decrypted with a wrong password.
+        return None
     return cmd_index + 1
 
 
@@ -83,6 +86,8 @@ class Message:
 
         crc_index = _get_crc_index(message)
         cmd_index = _get_cmd_index(message)
+        if crc_index is None or cmd_index is None:
+            raise InvalidMessageError(message)
         data = message[cmd_index + 2 : crc_index - 1]
         if len(data) < 1:
             return None
@@ -96,5 +101,7 @@ class Message:
         message = message.replace("\r", "")
 
         cmd_index = _get_cmd_index(message)
+        if cmd_index is None:
+            raise InvalidMessageError(message)
         cmd_type = message[cmd_index - 1 : cmd_index]
         return cmd_type
