@@ -1,4 +1,7 @@
 """Tests of building and parsing messages for PLCs."""
+import pytest
+
+from ...helper.exceptions import InvalidMessageError
 from ...helper.message import Message
 
 
@@ -142,3 +145,41 @@ def test_get_data():
     expected_result = None
     result = Message.get_data("*03#8D")
     assert result == expected_result
+
+
+def test_is_valid_message():
+    """Only messages of at least 6 characters are considered usable."""
+    assert Message.is_valid_message(None) is True
+    assert Message.is_valid_message("*03#8D") is False
+    assert Message.is_valid_message("*03") is True
+
+
+def test_message_without_command_marker():
+    """A message decoded with a wrong password has no '*' or '!'."""
+    assert Message.get_cmd_id("garbage-no-marker") is None
+    with pytest.raises(InvalidMessageError):
+        Message.get_cmd_type("garbage-no-marker")
+    with pytest.raises(InvalidMessageError):
+        Message.get_data("garbage-no-marker")
+
+
+def test_message_without_crc_has_no_data():
+    """Without the '#' the data cannot be found."""
+    with pytest.raises(InvalidMessageError):
+        Message.get_data("@01*2E000000D0")
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        Message.get_crc,
+        Message.get_plc_address,
+        Message.get_cmd_id,
+        Message.get_data,
+        Message.get_cmd_type,
+    ],
+)
+def test_too_short_message_is_invalid(method):
+    """Every parser refuses a message which is too short."""
+    with pytest.raises(InvalidMessageError):
+        method("*03")

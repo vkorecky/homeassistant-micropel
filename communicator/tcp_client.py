@@ -94,6 +94,10 @@ class TcpClient:
                     raise _ClosedByRemote("Connection closed by the remote host")
                 response_str = response.decode("utf-8")
                 response_str = self._cryptography.decode_string(response_str)
+                if Message.is_valid_message(response_str):
+                    # is_valid_message() returns True for a message which is
+                    # too short to be a valid one
+                    raise MicropelException(f"Reply is too short: {response_str!r}")
                 cmd_id = Message.get_cmd_id(response_str)
                 if cmd_id is None:
                     # Usually a wrong CA5 password (the reply is decrypted
@@ -111,8 +115,6 @@ class TcpClient:
                     )
                 if cmd_id != "6E":
                     wait = False
-            if Message.is_valid_message(response_str):
-                raise MicropelException
             if Message.get_cmd_type(response_str) == "!":
                 _LOGGER.warning(
                     "PLC answered with an error to %r: raw=%r decoded=%r",
