@@ -81,7 +81,15 @@ class TcpClient:
                 if Message.is_valid_message(response_str):
                     raise MicropelException
                 if Message.get_cmd_type(response_str) == "!":
-                    raise ExceptionResponse
+                    _LOGGER.warning(
+                        "PLC answered with an error to %r: raw=%r decoded=%r",
+                        message,
+                        response,
+                        response_str,
+                    )
+                    raise ExceptionResponse(
+                        f"PLC error response {response_str!r} to request {message!r}"
+                    )
                 data = Message.get_data(response_str)
                 return data
             except OSError as e:
